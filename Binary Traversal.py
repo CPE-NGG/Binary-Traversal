@@ -1,7 +1,8 @@
 import tkinter as tk
-from tkinter import messagebox, PhotoImage
+from tkinter import messagebox
 from PIL import Image, ImageTk
 
+# --- Logic Classes (Unchanged) ---
 class Node:
     def __init__(self, key):
         self.left = None
@@ -16,7 +17,7 @@ class BinarySearchTree:
         if root is None:
             return Node(key)
         if key == root.val:
-            return root  # Reject duplicates
+            return root
         if key < root.val:
             root.left = self.insert(root.left, key)
         else:
@@ -41,127 +42,152 @@ class BinarySearchTree:
             self.postorder(root.right, step_callback)
             step_callback(root.val, "Visit")
 
+# --- UI Application ---
 class BSTApp:
     def __init__(self, root):
         self.root = root
         self.bst = BinarySearchTree()
-        self.zoom_scale = 1.0  # Initial zoom scale
-        self.image_cache = {}  # Cache for resized bubble images
+        self.zoom_scale = 1.0
+        self.image_cache = {}
 
-        # Set up the main window
+        # Modernized Fonts
+        self.TITLE_FONT = ("Segoe UI", 22, "bold")
+        self.LABEL_FONT = ("Segoe UI", 11, "bold")
+        self.BTN_FONT = ("Segoe UI", 9, "bold")
+        self.BTN_HOVER_FONT = ("Segoe UI", 10, "bold")
+
         self.root.title("Binary Search Tree Traversal")
-        self.root.geometry("1000x600")
-        self.root.resizable(True, True)
+        self.root.geometry("1100x700")
 
-        # Load and resize the bubble node image once
-        original_image = Image.open("case5bubble.png")
-        self.original_image = original_image  # Store the original image to avoid multiple file reads
-        self.case5bubble_img = self.get_resized_bubble_image()
+        # Image Loading
+        try:
+            self.original_image = Image.open("case5bubble.png")
+            self.bg_image_raw = Image.open("case5bg.png")
+        except FileNotFoundError:
+            print("Warning: case5bubble.png or case5bg.png not found.")
+            self.original_image = Image.new('RGB', (50, 50), color='pink')
+            self.bg_image_raw = Image.new('RGB', (350, 700), color='#f0f0f0')
 
-        # Left Panel for Input and Traversals
-        self.left_frame = tk.Frame(self.root, width=300)  # Fixed width for the left panel
-        self.left_frame.pack(side="left", fill="y")
+        # Main Layout
+        # Left Panel (Increased width to 350 for bigger feel)
+        self.left_canvas = tk.Canvas(self.root, width=350, highlightthickness=0)
+        self.left_canvas.pack(side="left", fill="y")
+        
+        # Right Panel (Visualization)
+        self.right_frame = tk.Frame(self.root, bg="white")
+        self.right_frame.pack(side="right", fill="both", expand=True)
 
-        # Background for the left panel
-        self.left_panel_bg = PhotoImage(file="case5bg.png")
-        self.left_panel_label = tk.Label(self.left_frame, image=self.left_panel_bg)
-        self.left_panel_label.place(x=0, y=0, relwidth=1, relheight=1)
+        self.setup_left_panel()
+        self.setup_right_panel()
 
-        # Title Label
-        self.create_label(self.left_frame, "Binary Search Tree", font=("Arial", 20, "bold"), pady=10)
+        # Binding resize for background scaling
+        self.root.bind("<Configure>", self.on_resize)
 
-        # Input Field
-        self.create_label(self.left_frame, "Enter Integers (Space-Separated):", font=("Arial", 11), pady=5)
-        self.input_field = tk.Entry(self.left_frame, font=("Arial", 10), width=20)
-        self.input_field.pack(pady=5, fill="x", padx=10)
+    def setup_left_panel(self):
+        # Initial BG setup
+        self.bg_photo = ImageTk.PhotoImage(self.bg_image_raw)
+        self.bg_id = self.left_canvas.create_image(0, 0, image=self.bg_photo, anchor="nw")
 
-        # Buttons for Traversals
-        self.create_button("Insert Integers", self.build_bst, bg="#ffb6c1").pack(pady=10)
-        self.create_button("Preorder Traversal (LTR)", self.preorder_traversal).pack(pady=5)
-        self.create_button("Inorder Traversal (LRT)", self.inorder_traversal).pack(pady=5)
-        self.create_button("Postorder Traversal (TLR)", self.postorder_traversal).pack(pady=5)
+        # Center X for the new 350px width
+        cx = 175
 
-        # Result Display with Scrollbar
-        self.result_frame = tk.Frame(self.left_frame)
-        self.result_frame.pack(pady=10, padx=10, fill="both", expand=True)
+        # Transparent Labels (rendered as Canvas Text)
+        # Change: Title and Input Label font color to WHITE
+        self.title_id = self.left_canvas.create_text(cx, 40, text="Binary Search Tree", 
+                                                    font=self.TITLE_FONT, fill="white")
+        
+        self.input_label_id = self.left_canvas.create_text(cx, 90, text="Enter Integers (Space-Separated):", 
+                                                         font=self.LABEL_FONT, fill="white")
 
-        self.result_text = tk.Text(self.result_frame, height=10, font=("Arial", 10), state=tk.DISABLED)
-        self.result_text.pack(side="left", fill="both", expand=True)
+        # Input Field (standard widget)
+        self.input_field = tk.Entry(self.root, font=("Consolas", 11), width=30, relief="flat", bd=5)
+        self.input_window = self.left_canvas.create_window(cx, 125, window=self.input_field)
 
-        self.result_scrollbar = tk.Scrollbar(self.result_frame, orient="vertical", command=self.result_text.yview)
-        self.result_scrollbar.pack(side="right", fill="y")
-        self.result_text.config(yscrollcommand=self.result_scrollbar.set)
+        # Styled Buttons with Hover Expansion
+        self.btn_insert = self.create_styled_button("Insert Integers", self.build_bst, "#ffb6c1")
+        self.btn_pre = self.create_styled_button("Preorder Traversal", self.preorder_traversal, "#add8e6")
+        self.btn_in = self.create_styled_button("Inorder Traversal", self.inorder_traversal, "#add8e6")
+        self.btn_post = self.create_styled_button("Postorder Traversal", self.postorder_traversal, "#add8e6")
 
-        # Right Panel for Tree Visualization
-        self.right_frame = tk.Frame(self.root)
-        self.right_frame.pack(side="right", padx=10, pady=10, fill="both", expand=True)
+        self.btn_windows = [
+            self.left_canvas.create_window(cx, 180, window=self.btn_insert),
+            self.left_canvas.create_window(cx, 225, window=self.btn_pre),
+            self.left_canvas.create_window(cx, 265, window=self.btn_in),
+            self.left_canvas.create_window(cx, 305, window=self.btn_post)
+        ]
 
-        self.tree_canvas = tk.Canvas(self.right_frame, bg="#FFFFFF")
+        # Result Display (Scrollable Text)
+        self.result_text = tk.Text(self.root, height=12, font=("Consolas", 9), state=tk.DISABLED, relief="flat")
+        self.res_window = self.left_canvas.create_window(cx, 450, window=self.result_text, width=310)
+
+        # Zoom Controls
+        # Change: Zoom Label remains BLACK
+        self.zoom_text_id = self.left_canvas.create_text(cx, 580, text="Zoom Tree View?", font=self.LABEL_FONT, fill="black")
+        self.btn_zin = self.create_styled_button("+", self.zoom_in, "#90EE90", width=5)
+        self.btn_zout = self.create_styled_button("-", self.zoom_out, "#FFB6C1", width=5)
+        
+        self.left_canvas.create_window(cx - 30, 620, window=self.btn_zin)
+        self.left_canvas.create_window(cx + 30, 620, window=self.btn_zout)
+
+    def create_styled_button(self, text, command, color, width=25):
+        btn = tk.Button(self.root, text=text, command=command, bg=color, 
+                       font=self.BTN_FONT, width=width, relief="flat", 
+                       cursor="hand2", activebackground=color)
+        
+        # Expansion Hover Effect
+        def on_enter(e):
+            btn.config(bg="#ffffff", font=self.BTN_HOVER_FONT, pady=2)
+        def on_leave(e):
+            btn.config(bg=color, font=self.BTN_FONT, pady=0)
+            
+        btn.bind("<Enter>", on_enter)
+        btn.bind("<Leave>", on_leave)
+        return btn
+
+    def setup_right_panel(self):
+        self.tree_canvas = tk.Canvas(self.right_frame, bg="#FFFFFF", highlightthickness=0)
         self.v_scrollbar = tk.Scrollbar(self.right_frame, orient="vertical", command=self.tree_canvas.yview)
         self.h_scrollbar = tk.Scrollbar(self.right_frame, orient="horizontal", command=self.tree_canvas.xview)
+        
         self.tree_canvas.configure(yscrollcommand=self.v_scrollbar.set, xscrollcommand=self.h_scrollbar.set)
-
+        
         self.v_scrollbar.pack(side="right", fill="y")
         self.h_scrollbar.pack(side="bottom", fill="x")
-        self.tree_canvas.pack(side="left", fill="both", expand=True)
+        self.tree_canvas.pack(fill="both", expand=True)
 
-        self.canvas_frame = tk.Frame(self.tree_canvas, bg="#FFFFFF")
-        self.tree_canvas.create_window((0, 0), window=self.canvas_frame, anchor="nw")
+    def on_resize(self, event=None):
+        # Resize background image to match left canvas
+        w, h = self.left_canvas.winfo_width(), self.left_canvas.winfo_height()
+        if w > 10 and h > 10:
+            resized_bg = self.bg_image_raw.resize((w, h), Image.Resampling.LANCZOS)
+            self.bg_photo = ImageTk.PhotoImage(resized_bg)
+            self.left_canvas.itemconfig(self.bg_id, image=self.bg_photo)
 
-        self.canvas_frame.bind("<Configure>", self.update_scroll_region)
-        self.tree_canvas.bind("<MouseWheel>", self.on_mouse_wheel)
-        self.tree_canvas.bind("<Shift-MouseWheel>", self.on_horizontal_mouse_wheel)
-
-        # Zoom Buttons
-        self.create_label(self.left_frame, "Zoom the Binary Search Tree?", font=("Arial", 11, "bold"), pady=(10, 5))
-        zoom_frame = tk.Frame(self.left_frame)
-        zoom_frame.pack(pady=(10, 1))
-        self.create_button("+", self.zoom_in, parent=zoom_frame, width=5, bg="#ffb6c1").pack(side="left", padx=5)
-        self.create_button("-", self.zoom_out, parent=zoom_frame, width=5, bg="#add8e6").pack(side="right", padx=5)
-
-    def create_label(self, parent, text, font=("Arial", 10), pady=0):
-        label = tk.Label(parent, text=text, font=font, fg="#000000")
-        label.pack(pady=pady)
-        return label
-
-    def create_button(self, text, command, parent=None, bg="#add8e6", width=20):
-        if not parent:
-            parent = self.left_frame
-        return tk.Button(parent, text=text, command=command, font=("Arial", 10), width=width, bg=bg, relief="raised", bd=2)
-
-    def clear_result_text(self):
-        self.result_text.config(state=tk.NORMAL)
-        self.result_text.delete(1.0, tk.END)
-
+    # --- BST Functionality (Optimized UI interaction) ---
     def build_bst(self):
         numbers = self.input_field.get().split()
         try:
             numbers = list(map(int, numbers))
             if len(numbers) > 30:
-                messagebox.showerror("Input Error", "Please enter a maximum number of 30 integers.")
+                messagebox.showerror("Input Error", "Maximum 30 integers allowed.")
                 return
 
             self.bst = BinarySearchTree()
             for num in numbers:
                 self.bst.root = self.bst.insert(self.bst.root, num)
 
-            self.clear_result_text()
-            self.result_text.insert(tk.END, "Binary Search Tree built successfully!\n")
-            self.result_text.config(state=tk.DISABLED)
+            self.update_result("BST built successfully!")
             self.display_tree()
-
         except ValueError:
-            messagebox.showerror("Input Error", "Please enter valid integers only.")
+            messagebox.showerror("Input Error", "Please enter valid integers.")
 
-    def adjust_zoom(self, scale_factor):
-        self.zoom_scale *= scale_factor
-        self.display_tree()
-
-    def zoom_in(self):
-        self.adjust_zoom(1.2)
-
-    def zoom_out(self):
-        self.adjust_zoom(0.8)
+    def update_result(self, text, clear=True):
+        self.result_text.config(state=tk.NORMAL)
+        if clear: self.result_text.delete(1.0, tk.END)
+        self.result_text.insert(tk.END, text + "\n")
+        self.result_text.see(tk.END)
+        self.result_text.config(state=tk.DISABLED)
+        self.root.update()
 
     def display_tree(self):
         self.tree_canvas.delete("all")
@@ -169,115 +195,70 @@ class BSTApp:
             subtree_widths = {}
             self.populate_subtree_widths(self.bst.root, subtree_widths)
             positions = {}
-            self.calculate_positions(self.bst.root, 500, 100, 25 * self.zoom_scale, positions, subtree_widths)
+            # Center the tree horizontally based on canvas width
+            canvas_mid = self.tree_canvas.winfo_width() // 2 or 400
+            self.calculate_positions(self.bst.root, canvas_mid, 80, 40 * self.zoom_scale, positions, subtree_widths)
             self.draw_tree(self.bst.root, positions)
         self.tree_canvas.configure(scrollregion=self.tree_canvas.bbox("all"))
 
-    def populate_subtree_widths(self, node, subtree_widths):
-        if node:
-            left_width = self.populate_subtree_widths(node.left, subtree_widths)
-            right_width = self.populate_subtree_widths(node.right, subtree_widths)
-            subtree_widths[node] = max(1, left_width + right_width + 1)
-            return subtree_widths[node]
-        return 0
+    def populate_subtree_widths(self, node, widths):
+        if not node: return 0
+        left = self.populate_subtree_widths(node.left, widths)
+        right = self.populate_subtree_widths(node.right, widths)
+        widths[node] = max(1, left + right + 1)
+        return widths[node]
 
-    def calculate_positions(self, node, x, y, level_spacing, positions, subtree_widths, min_spacing=30):
+    def calculate_positions(self, node, x, y, spacing, positions, widths):
         if node:
-            left_width = subtree_widths.get(node.left, 0)
-            right_width = subtree_widths.get(node.right, 0)
-            x_offset = max(min_spacing, level_spacing * (left_width + right_width) / 2)
-
             positions[node] = (x, y)
-
+            offset = (widths.get(node.left, 0) + widths.get(node.right, 0)) * spacing
             if node.left:
-                self.calculate_positions(
-                    node.left, x - x_offset, y + 100, level_spacing, positions, subtree_widths, min_spacing
-                )
+                self.calculate_positions(node.left, x - offset, y + 100, spacing, positions, widths)
             if node.right:
-                self.calculate_positions(
-                    node.right, x + x_offset, y + 100, level_spacing, positions, subtree_widths, min_spacing
-                )
+                self.calculate_positions(node.right, x + offset, y + 100, spacing, positions, widths)
 
     def draw_tree(self, node, positions):
         if node:
             x, y = positions[node]
-
-            if node.left:
-                lx, ly = positions[node.left]
-                self.tree_canvas.create_line(x, y, lx, ly, fill="#000000", width=2 * self.zoom_scale)
-            if node.right:
-                rx, ry = positions[node.right]
-                self.tree_canvas.create_line(x, y, rx, ry, fill="#000000", width=2 * self.zoom_scale)
-
-            bubble_node_img = self.get_resized_bubble_image()
-            self.tree_canvas.create_image(x, y, image=bubble_node_img)
-
-            font_size = int(15 * self.zoom_scale)
-            self.tree_canvas.create_text(x, y, text=str(node.val), font=("Arial", font_size, "bold"), fill="black")
-
-            if node.left:
-                self.draw_tree(node.left, positions)
-            if node.right:
-                self.draw_tree(node.right, positions)
+            # Draw Lines
+            for child in [node.left, node.right]:
+                if child:
+                    cx, cy = positions[child]
+                    self.tree_canvas.create_line(x, y, cx, cy, fill="#bdc3c7", width=int(2*self.zoom_scale))
+            
+            # Draw Bubble
+            bubble_img = self.get_resized_bubble_image()
+            self.tree_canvas.create_image(x, y, image=bubble_img)
+            self.tree_canvas.create_text(x, y, text=str(node.val), 
+                                        font=("Segoe UI", int(12*self.zoom_scale), "bold"))
+            
+            self.draw_tree(node.left, positions)
+            self.draw_tree(node.right, positions)
 
     def get_resized_bubble_image(self):
-        if self.zoom_scale not in self.image_cache:
-            bubble_size = int(50 * self.zoom_scale)
-            resized_image = self.original_image.resize((bubble_size, bubble_size), Image.Resampling.LANCZOS)
-            self.image_cache[self.zoom_scale] = ImageTk.PhotoImage(resized_image)
-        return self.image_cache[self.zoom_scale]
+        size = int(50 * self.zoom_scale)
+        if size not in self.image_cache:
+            res = self.original_image.resize((size, size), Image.Resampling.LANCZOS)
+            self.image_cache[size] = ImageTk.PhotoImage(res)
+        return self.image_cache[size]
 
-    def on_mouse_wheel(self, event):
-        delta = -1 if event.delta < 0 else 1
-        self.tree_canvas.yview_scroll(delta, "units")
+    def zoom_in(self): self.zoom_scale *= 1.1; self.display_tree()
+    def zoom_out(self): self.zoom_scale *= 0.9; self.display_tree()
 
-    def on_horizontal_mouse_wheel(self, event):
-        self.tree_canvas.xview_scroll(-1 * (event.delta // 120), "units")
-
-    def update_scroll_region(self, event=None):
-        self.tree_canvas.config(scrollregion=self.tree_canvas.bbox("all"))
-
-    def display_result(self, traversal_type, result):
-        self.clear_result_text()
-        self.result_text.insert(tk.END, f"{traversal_type}: {' '.join(map(str, result))}\n")
-        self.result_text.config(state=tk.DISABLED)
-
-    def step_by_step_traversal(self, traversal_type, traversal_function):
+    def step_by_step_traversal(self, name, func):
+        self.update_result(f"{name} Steps:")
         steps = []
+        def callback(v, a):
+            steps.append(v)
+            self.update_result(f"Step {len(steps)}: {a} {v}", clear=False)
+            self.root.after(400)
+        
+        func(self.bst.root, callback)
+        self.update_result(f"\nFinal: {' '.join(map(str, steps))}", clear=False)
 
-        def step_callback(value, action):
-            steps.append((value, action))
-            step_number = len(steps)
-            self.result_text.config(state=tk.NORMAL)
-            self.result_text.insert(tk.END, f"Step {step_number}: {action} {value}\n")
-            self.result_text.config(state=tk.DISABLED)
-            self.result_text.update()
-            self.root.after(500)
-
-        traversal_function(self.bst.root, step_callback)
-
-        final_result = [value for value, action in steps]
-        self.result_text.config(state=tk.NORMAL)
-        self.result_text.insert(tk.END, f"\nFinal {traversal_type}: {' '.join(map(str, final_result))}\n")
-        self.result_text.config(state=tk.DISABLED)
-
-    def preorder_traversal(self):
-        self.clear_result_text()
-        self.result_text.insert(tk.END, "Preorder Traversal Steps:\n")
-        self.result_text.config(state=tk.DISABLED)
-        self.step_by_step_traversal("Preorder Traversal (LTR)", self.bst.preorder)
-
-    def inorder_traversal(self):
-        self.clear_result_text()
-        self.result_text.insert(tk.END, "Inorder Traversal Steps:\n")
-        self.result_text.config(state=tk.DISABLED)
-        self.step_by_step_traversal("Inorder Traversal (LRT)", self.bst.inorder)
-
-    def postorder_traversal(self):
-        self.clear_result_text()
-        self.result_text.insert(tk.END, "Postorder Traversal Steps:\n")
-        self.result_text.config(state=tk.DISABLED)
-        self.step_by_step_traversal("Postorder Traversal (TLR)", self.bst.postorder)
+    def preorder_traversal(self): self.step_by_step_traversal("Preorder", self.bst.preorder)
+    def inorder_traversal(self): self.step_by_step_traversal("Inorder", self.bst.inorder)
+    def postorder_traversal(self): self.step_by_step_traversal("Postorder", self.bst.postorder)
 
 if __name__ == "__main__":
     root = tk.Tk()
